@@ -21,12 +21,19 @@ You can use the Thing directly in your code, to not create a direct dependency t
 
 ![Services available](readme/twx_services.png?raw=true)
 
-
 ## Contributing
 Feel free to contribute to this project by creating pull requests or reporting bugs. If you have suggestions for new features, please open an issue.
-To build the project locally you will need to download the ThingWorx Extension SDK and extract the twx-lib into folder twx-lib.
 
-## Supported Environment variables / Project properties
+## Build
+To build the project locally you will need to download the ThingWorx Extension SDK and extract the twx-lib into folder twx-lib.
+After that you can run e.g.
+```
+./gradlew clean
+./gradlew build -PPACKAGE_VERSION=1.0.5 -PBUILD_NUMBER=5 -PBUILD_SOURCEVERSION=GitCommitSha -PallEditable=false
+```
+To run gradle in two steps is currently needed as otherwise the semver4j.jar will not be existent in the resulting extension .zip.
+
+### Supported Environment variables / Project properties
 
 - `PACKAGE_VERSION`: Version of the extension. Defaults to `0.yyyyMMdd.MMhhss`
 - `BUILD_NUMBER`: The CI Build ID. Defaults to `SNAPSHOT - yyyyMMddHHmmss`
