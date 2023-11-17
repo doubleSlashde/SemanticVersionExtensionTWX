@@ -1,0 +1,270 @@
+apply plugin: 'java'
+
+defaultTasks 'clean', 'build'
+
+ext {
+    startTime = new Date()
+
+    jvmVersion = org.gradle.internal.jvm.Jvm.current()
+    package_version = "GENERATE"
+    build_number = "SNAPSHOT"
+    source_version = "SNAPSHOT"
+    project_vendor = ""
+    twx_eclipse_plugin_version = ""
+
+    loadExtensionProperties()
+
+    makeAllEditable = project.hasProperty('allEditable') && allEditable == 'true'
+    logger.info("Make all editable: " + makeAllEditable)
+
+    packageVersion = System.getenv("PACKAGE_VERSION") ?: package_version
+    buildNumber = System.getenv("BUILD_NUMBER") ?: build_number
+    sourceVersion = System.getenv("BUILD_SOURCEVERSION") ?: source_version
+
+    if (project.hasProperty('BUILD_NUMBER')) {
+        logger.info("BUILD_NUMBER passed")
+        buildNumber = project.getProperty('BUILD_NUMBER')
+    }
+
+    if (project.hasProperty('PACKAGE_VERSION')) {
+        logger.info("PACKAGE_VERSION passed")
+        packageVersion = project.getProperty('PACKAGE_VERSION')
+    }
+
+    if (project.hasProperty('BUILD_SOURCEVERSION')) {
+        logger.info("BUILD_SOURCEVERSION passed")
+        sourceVersion = project.getProperty('BUILD_SOURCEVERSION')
+    }
+
+    if (buildNumber == "SNAPSHOT") {
+        def date = new Date()
+        def prefix = "SNAPSHOT-"
+        buildNumber = prefix + date.format('yyyyMMddHHmmss')
+    }
+
+    if (packageVersion == "GENERATE") {
+        def date = new Date()
+        def dateString = date.format('yyyyMMdd').toString()
+        def timeString = date.format('HHmmss').toString()
+        packageVersion = "0." + dateString + "." + timeString
+    }
+
+    logger.lifecycle("Using packageVersion: '{}'.", packageVersion)
+    logger.lifecycle("Using buildNumber: '{}'.", buildNumber)
+    logger.lifecycle("Using sourceVersion: '{}'.", sourceVersion)
+
+    jarName = project.name + ".jar"
+
+    environment = "regular"
+    if (makeAllEditable) {
+        environment = "editable"
+    }
+
+    zipName = project.name + "-v" + packageVersion + "-" + environment + ".zip"
+}
+
+artifacts {
+    archives file: file('build/distributions/' + zipName), name: zipName, type: 'zip'
+}
+
+def loadExtensionProperties() {
+    def props = new Properties()
+    def propFile = file("extension.properties")
+    if (propFile.exists()) {
+        propFile.withInputStream {
+            stream -> props.load(stream)
+        }
+    } else {
+        logger.warn('WARNING - Properties file: extension.properties, does not exist! Extension META.INF will not have all extension details.')
+    }
+    props.each { key, val ->
+        project.ext[key] = val
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+configurations {
+    // for each packageDependency also add a FileResource entry in the metadata.xml manually
+    packageDependencies
+    compile {
+        extendsFrom packageDependencies
+    }
+}
+
+dependencies {
+
+    compile fileTree(dir: 'twx-lib', include: '*.jar')
+    compile fileTree(dir: 'lib', include: '*.jar')
+    packageDependencies 'org.semver4j:semver4j:5.2.2'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+jar {
+    archiveName = jarName
+
+    from(sourceSets.main.output) {
+        include '**/*.class'
+    }
+
+    manifest {
+        attributes("Created-By": jvmVersion,
+                "Built-By": "Eclipse Plugin for ThingWorx Extension Development " + twx_eclipse_plugin_version,
+                "Build-Date": startTime,
+                "Build-Number": buildNumber)
+        attributes(["Package-Title"  : project.name,
+                    "Package-Version": packageVersion,
+                    "Package-Vendor" : project_vendor], project.name)
+    }
+}
+
+clean {
+    delete 'build/Entities'
+}
+
+task copyMetadata(type: Copy) {
+    from 'configfiles'
+    into 'build/configfiles'
+}
+
+task setPackageVersion(dependsOn: 'copyMetadata') {
+    doLast {
+        File metadata = file('build/configfiles/metadata.xml')
+        String contentMetaData = metadata.getText("UTF-8")
+        String regexPackageVersion = "(packageVersion=\")([^\"]*)"
+
+        contentMetaData = contentMetaData.replaceAll(regexPackageVersion, "\$1" + packageVersion)
+        metadata.write(contentMetaData, "UTF-8")
+    }
+}
+
+task setBuildNumber(dependsOn: 'setPackageVersion') {
+    doLast {
+        File metadata = file('build/configfiles/metadata.xml')
+        String contentMetaData = metadata.getText("UTF-8")
+        String regexPackageVersion = "(buildNumber=\")([^\"]*)"
+
+        def packageVersionString = "\$1" + buildNumber + " - (Revision: " + sourceVersion + ") - " + environment
+        contentMetaData = contentMetaData.replaceAll(regexPackageVersion, packageVersionString)
+
+        metadata.write(contentMetaData, "UTF-8")
+    }
+}
+build.dependsOn('setBuildNumber')
+
+
+task copyEntities(type: Copy) {
+    from 'Entities'
+    into 'build/Entities'
+}
+
+task removeAspects(dependsOn: 'copyEntities') {
+    description = "Removing invalid attributes from xml files (for extension imports)."
+    doLast {
+        def regexes = ["(aspect\\.source=\".*\")", "(aspect\\.tagAddress=\".*\")", "(aspect\\.PP-[^=]+=\".*\")", "(sourceType=\".*\")"]
+        def files = fileTree('build/Entities').filter { it.isFile() }
+        files.each { File file ->
+            String content = file.getText("UTF-8")
+
+            regexes.each { String regex ->
+                content = content.replaceAll(regex, "")
+            }
+
+            file.write(content, "UTF-8")
+        }
+    }
+}
+
+task removeEditable(dependsOn: 'removeAspects') {
+    description = "Removing isExtension and isEditableExtensionObject attributes from xml files."
+    doLast {
+        def files = fileTree('build/Entities').filter { it.isFile() }
+        files.each { File file ->
+            String content = file.getText("UTF-8")
+            String regex = "(?:aspect\\.(?:isExtension|isEditableExtensionObject)=\"[^\"]+\")"
+            content = content.replaceAll(regex, "")
+            file.write(content, "UTF-8")
+        }
+    }
+}
+
+task makeEditable(dependsOn: 'removeEditable') {
+    description = "Setting isExtension and isEditableExtensionObject as configured."
+    doLast {
+        final MATCH_EDITABLE_REGEX = "(<Entities(?:\\s[^>]*|)>\\s*<[^>]+>\\s*<[^\\s]+)(?=[\\s\\S]*(?:tags=\".*BL:isEditable.*\"))"
+        final MATCH_ALL_REGEX = "(<Entities(?:\\s[^>]*|)>\\s*<[^>]+>\\s*<[^\\s]+)"
+
+        def files = fileTree('build/Entities').filter { it.isFile() }
+        files.each {
+            File file ->
+                String content = file.getText("UTF-8")
+                def tempEditable = false
+                if (makeAllEditable || content =~ MATCH_EDITABLE_REGEX) {
+                    tempEditable = true
+                    logger.info("Setting file '" + file.getName() + "' to editable.")
+                }
+                content = content.replaceAll(MATCH_ALL_REGEX, "\$1 aspect.isEditableExtensionObject=\"" + tempEditable + "\" aspect.isExtension=\"true\"")
+                file.write(content, "UTF-8")
+        }
+    }
+}
+build.dependsOn('makeEditable')
+
+
+task createZip(type: Zip) {
+    archiveName = zipName
+
+    // include the metadata.xml
+    from 'build/configfiles'
+    include 'metadata.xml'
+
+
+    if (!fileTree('src').isEmpty()) { // if any java exists
+        // add here all the jars from the packageDependencies configuration
+        copy {
+            from configurations.packageDependencies
+            into 'build/libs'
+            eachFile { logger.lifecycle("Copying dependency {} to build/libs.", it) }
+        }
+
+        // this will include the built jar for this extension's java code
+        from('build/libs') {
+            include '*.jar'
+            into 'lib/common'
+        }
+    }
+
+    // include the Entity xml files included in this plugin
+    from('build/Entities') {
+        include '**/*.xml'
+        into 'Entities'
+    }
+
+    // include the Localization json files included in this plugin
+    from('Localization') {
+        include '**/*.json'
+        into 'Localization'
+    }
+
+    // including all jars from the lib folder
+    from('lib') {
+        include '**/*.jar'
+        into 'lib/common'
+    }
+
+    // for if there are widgets in the extension
+    from('ui') {
+        include '**/*.*'
+        into 'ui'
+    }
+}
+createZip.dependsOn('jar')
+build.finalizedBy(createZip)
