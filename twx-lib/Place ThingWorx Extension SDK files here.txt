@@ -1,0 +1,1 @@
+At least the file in pattern `thingworx-ext-sdk-9.1.0-b10877.jar` is needed here. You can download the ThingWorx Extension SDK in the PTC sotware download portal.

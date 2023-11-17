@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<Entities>
+    <ExtensionPackages>
+        <ExtensionPackage buildNumber="SNAPSHOT-20201103083645 - (Revision: SNAPSHOT) - editable" dependsOn="" description="Helper to validate and compare semantic version strings. Uses semver4j. See https://github.com/doubleSlashde/SemanticVersionExtensionTWX/." minimumThingWorxVersion="9.1.0" name="semantic-version-extension" packageVersion="0.20201103.083645" vendor="doubleSlash Net-Business GmbH">
+            <JarResources>
+                <FileResource description="Server ThingPackage JAR" file="semantic-version-extension.jar" type="JAR"/>
+                <FileResource description="semver4j - https://github.com/semver4j/semver4j" file="semver4j-5.2.2.jar" type="JAR"/>
+            </JarResources>
+        </ExtensionPackage>
+    </ExtensionPackages>
+    <ThingPackages>
+        <ThingPackage
+                className="de.ds.twx.server.extension.SemVerComparisonThing"
+                description="" name="DS.TT.SemVerComparison"
+                aspect.isCreatable="true" aspect.isSystemObject="false" />
+    </ThingPackages>
+    <ThingTemplates>
+        <ThingTemplate description="" name="DS.TT.SemVerComparison"
+                       thingPackage="DS.TT.SemVerComparison"
+                       aspect.isSystemObject="false" />
+    </ThingTemplates>
+</Entities>
