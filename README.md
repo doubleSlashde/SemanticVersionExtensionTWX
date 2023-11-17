@@ -31,6 +31,8 @@ After that you can run e.g.
 ./gradlew clean
 ./gradlew build -PPACKAGE_VERSION=1.0.5 -PBUILD_NUMBER=5 -PBUILD_SOURCEVERSION=GitCommitSha -PallEditable=false
 ```
+See `build.sh` for an example.
+
 To run gradle in two steps is currently needed as otherwise the semver4j.jar will not be existent in the resulting extension .zip.
 
 ### Supported Environment variables / Project properties
